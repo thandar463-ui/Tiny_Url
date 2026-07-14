@@ -3,10 +3,12 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { HashingModule } from './modules/hashing/hashing.module';
+import { UrlModule } from './modules/url/url.module';
 
 
 @Module({
-  imports: [PrismaModule, AuthModule,],
+  imports: [PrismaModule, AuthModule, HashingModule, UrlModule],
   controllers: [AppController],
   providers: [AppService],
 })
