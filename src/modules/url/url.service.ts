@@ -4,6 +4,7 @@ import { HashingService } from '../hashing/hashing.service';
 
 import { ShortenUrlDto } from './dtos/shortenUrl.dto';
 import { GetUrlDto } from './dtos/get-url.dto';
+import { UpdateUrlDto } from './dtos/update-url.dto';
 
 @Injectable()
 export class UrlService {
@@ -182,5 +183,55 @@ export class UrlService {
                 totalPages: Math.ceil(total / size),
             },
         };
+    }
+
+    async updateUrl(userId: string, id: string, input: UpdateUrlDto) {
+        const url = await this.prisma.url.findFirst({
+            where: {
+                id,
+                userId,
+                deletedAt: null,
+            },
+        });
+
+        if (!url) {
+            throw new NotFoundException('URL not found.');
+        }
+
+        const updateUrl = await this.prisma.url.update({
+            where: {
+                id,
+            },
+            data: {
+                originalUrl: input.originalUrl,
+            }
+        });
+
+        return updateUrl;
+    }
+
+    async deleteUrl(userId: string, id: string) {
+        const url = await this.prisma.url.findFirst({
+            where: {
+                id,
+                userId,
+                deletedAt: null,
+            },
+        });
+
+        if (!url) {
+            throw new NotFoundException('URL not found.');
+        }
+
+        const deleteUrl = await this.prisma.url.update({
+            where: {
+                id,
+            },
+            data: {
+                deletedAt: new Date(),
+            },
+        });
+
+        return deleteUrl;
     }
 }
