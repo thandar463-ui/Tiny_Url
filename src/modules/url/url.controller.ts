@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards, Get, Patch, Delete, Res, Param, Ip, Headers, HttpStatus, UsePipes, ValidationPipe } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Get, Patch, Delete, Res, Param, Ip, Headers, UsePipes, ValidationPipe } from '@nestjs/common';
 import type { Response } from 'express';
 import { UrlService } from './url.service';
 import { ShortenUrlDto } from './dtos/shortenUrl.dto';
@@ -6,6 +6,7 @@ import { AuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { GetUrlDto } from './dtos/get-url.dto';
 import { UpdateUrlDto } from './dtos/update-url.dto';
+import { GetAnalyticsUrlDto } from './dtos/get-analytics.dto';
 
 @Controller('urls')
 export class UrlController {
@@ -101,4 +102,26 @@ export class UrlController {
             message: 'Url deleted successfully!',
         };
     }
+
+
+    @Get(':id/analytics')
+    @UseGuards(AuthGuard)
+    @UsePipes(new ValidationPipe({ transform: true }))
+
+    async getAnalytics(
+        @CurrentUser('id') userId: string,
+
+        @Param('id') id: string,
+
+        @Body() input: GetAnalyticsUrlDto
+    ) {
+        const analyticUrl = await this.urlService.getAnalyticsUrl(id, userId, input);
+
+        return {
+            success: true,
+            data: analyticUrl,
+            message: 'Url analyticed successfully!',
+        };
+    }
+
 }

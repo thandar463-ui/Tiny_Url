@@ -1,10 +1,11 @@
 import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { HashingService } from '../hashing/hashing.service';
-
+import { Prisma } from '@prisma/client';
 import { ShortenUrlDto } from './dtos/shortenUrl.dto';
 import { GetUrlDto } from './dtos/get-url.dto';
 import { UpdateUrlDto } from './dtos/update-url.dto';
+import { GetAnalyticsUrlDto } from './dtos/get-analytics.dto';
 
 @Injectable()
 export class UrlService {
@@ -42,7 +43,7 @@ export class UrlService {
 
         const expiresAt = new Date();
         expiresAt.setDate(
-            expiresAt.getDate() + 1 * 60 * 60 * 24 * 7,
+            expiresAt.getDate() + 7,
         );
 
         const url =
@@ -233,5 +234,92 @@ export class UrlService {
         });
 
         return deleteUrl;
+    }
+
+    async getAnalyticsUrl(id: string, userId: string, input: GetAnalyticsUrlDto) {
+        const url = await this.prisma.url.findFirst({
+            where: {
+                id,
+                userId,
+                deletedAt: null,
+            },
+        });
+
+        if (!url) {
+            throw new NotFoundException('URL not found.');
+        }
+
+        const where: Prisma.VisitWhereInput = {
+            urlId: id,
+        };
+
+        if (input.startDate || input.endDate) {
+            where.createdAt = {};
+
+            if (input.startDate) {
+                where.createdAt.gte = new Date(input.startDate);
+            }
+
+
+            if (input.endDate) {
+                where.createdAt.lte = new Date(input.endDate);
+            }
+        }
+
+        const visits = await this.prisma.visit.findMany({
+            where,
+            select: {
+                ipHash: true,
+                createdAt: true,
+            },
+            orderBy: {
+                createdAt: 'asc',
+            },
+        });
+
+        const totalClicks = url.clickCount;
+
+        const uniqueVisitors = new Set(visits.map((visit) => visit.ipHash),).size;
+
+        const lastVisitedAt = visits.length > 0 ? visits[visits.length - 1].createdAt : null;
+
+        const dailyClicks: {
+            date: string;
+            clicks: number;
+        }[] = [];
+
+        for (const visit of visits) {
+            const date = visit.createdAt.toISOString().split('T')[0];
+
+            const index = dailyClicks.findIndex(
+                (item) => item.date === date,
+            );
+
+            if (index === -1) {
+                dailyClicks.push({
+                    date,
+                    clicks: 1,
+                });
+            } else {
+                dailyClicks[index].clicks++;
+            }
+        }
+
+        return {
+            url: {
+                id: url.id,
+                shortCode: url.shortCode,
+                originalUrl: url.originalUrl,
+                createdAt: url.createdAt,
+                expiresAt: url.expiresAt,
+            },
+
+            analytics: {
+                totalClicks,
+                uniqueVisitors,
+                lastVisitedAt,
+                dailyClicks,
+            },
+        };
     }
 }
