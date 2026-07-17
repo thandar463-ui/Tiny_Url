@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards, Get, Patch, Delete, Res, Param, Ip, Headers, UsePipes, ValidationPipe } from '@nestjs/common';
+import { Controller, Post, Body, Query, UseGuards, Get, Patch, Delete, Res, Param, Ip, Headers, UsePipes, ValidationPipe } from '@nestjs/common';
 import type { Response } from 'express';
 import { UrlService } from './url.service';
 import { ShortenUrlDto } from './dtos/shortenUrl.dto';
@@ -7,7 +7,9 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { GetUrlDto } from './dtos/get-url.dto';
 import { UpdateUrlDto } from './dtos/update-url.dto';
 import { GetAnalyticsUrlDto } from './dtos/get-analytics.dto';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiParam, ApiHeader } from '@nestjs/swagger';
 
+@ApiTags('URL -Shortener')
 @Controller('urls')
 export class UrlController {
     constructor(
@@ -16,6 +18,8 @@ export class UrlController {
 
     @Post('shorten')
     @UseGuards(AuthGuard)
+    @ApiBearerAuth('JWT')
+    @ApiOperation({ summary: 'Create a shorten url' })
     create(
         @CurrentUser('id')
         userId: string,
@@ -30,6 +34,12 @@ export class UrlController {
     }
 
     @Get('redir/:shortCode')
+    @ApiOperation({ summary: 'Redirect short code to original URL and track analytics' })
+    @ApiParam({ name: 'shortCode', description: 'The unique code of shortened URL' })
+    @ApiHeader({
+        name: 'user-agent',
+        required: false,
+    })
     async redirect(
         @Param('shortCode') shortCode: string,
         @Ip() ip: string,
@@ -53,10 +63,12 @@ export class UrlController {
     @Get()
     @UseGuards(AuthGuard)
     @UsePipes(new ValidationPipe({ transform: true }))
+    @ApiBearerAuth('JWT')
+    @ApiOperation({ summary: 'Get all URLs created by the current user' })
 
     async getUrlList(
         @CurrentUser('id') userId: string,
-        @Body() input: GetUrlDto
+        @Query() input: GetUrlDto
     ) {
         const result = await this.urlService.getUrlList(userId, input);
 
@@ -70,6 +82,10 @@ export class UrlController {
     @Patch(':id')
     @UseGuards(AuthGuard)
     @UsePipes(new ValidationPipe({ transform: true }))
+    @ApiBearerAuth('JWT')
+    @ApiOperation({ summary: 'Update a shortened URL by ID' })
+    @ApiParam({ name: 'id', description: 'URL Document ID' })
+
     async update(
         @CurrentUser('id') userId: string,
 
@@ -88,6 +104,10 @@ export class UrlController {
 
     @Delete(':id')
     @UseGuards(AuthGuard)
+    @ApiBearerAuth('JWT')
+    @ApiOperation({ summary: 'Delete a shortened URL by ID' })
+    @ApiParam({ name: 'id', description: 'URL Document ID' })
+
     async delete(
         @CurrentUser('id') userId: string,
 
@@ -107,13 +127,16 @@ export class UrlController {
     @Get(':id/analytics')
     @UseGuards(AuthGuard)
     @UsePipes(new ValidationPipe({ transform: true }))
+    @ApiBearerAuth('JWT')
+    @ApiOperation({ summary: 'Get analytics data for a specific URL' })
+    @ApiParam({ name: 'id', description: 'URL Document ID' })
 
     async getAnalytics(
         @CurrentUser('id') userId: string,
 
         @Param('id') id: string,
 
-        @Body() input: GetAnalyticsUrlDto
+        @Query() input: GetAnalyticsUrlDto
     ) {
         const analyticUrl = await this.urlService.getAnalyticsUrl(id, userId, input);
 
