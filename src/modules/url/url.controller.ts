@@ -7,9 +7,12 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { GetUrlDto } from './dtos/get-url.dto';
 import { UpdateUrlDto } from './dtos/update-url.dto';
 import { GetAnalyticsUrlDto } from './dtos/get-analytics.dto';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiParam, ApiHeader } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiParam, ApiHeader, ApiExtension } from '@nestjs/swagger';
+import { Public } from '../auth/decorators/public.decorator';
 
 @ApiTags('URL -Shortener')
+@UseGuards(AuthGuard)
+
 @Controller('urls')
 export class UrlController {
     constructor(
@@ -17,7 +20,6 @@ export class UrlController {
     ) { }
 
     @Post('shorten')
-    @UseGuards(AuthGuard)
     @ApiBearerAuth('JWT')
     @ApiOperation({ summary: 'Create a shorten url' })
     create(
@@ -34,6 +36,8 @@ export class UrlController {
     }
 
     @Get('redir/:shortCode')
+    @Public()
+    @ApiExtension('x-token-bypass', true)
     @ApiOperation({ summary: 'Redirect short code to original URL and track analytics' })
     @ApiParam({ name: 'shortCode', description: 'The unique code of shortened URL' })
     @ApiHeader({
@@ -61,8 +65,6 @@ export class UrlController {
     }
 
     @Get()
-    @UseGuards(AuthGuard)
-    @UsePipes(new ValidationPipe({ transform: true }))
     @ApiBearerAuth('JWT')
     @ApiOperation({ summary: 'Get all URLs created by the current user' })
 
@@ -80,8 +82,6 @@ export class UrlController {
     }
 
     @Patch(':id')
-    @UseGuards(AuthGuard)
-    @UsePipes(new ValidationPipe({ transform: true }))
     @ApiBearerAuth('JWT')
     @ApiOperation({ summary: 'Update a shortened URL by ID' })
     @ApiParam({ name: 'id', description: 'URL Document ID' })
@@ -103,7 +103,6 @@ export class UrlController {
     }
 
     @Delete(':id')
-    @UseGuards(AuthGuard)
     @ApiBearerAuth('JWT')
     @ApiOperation({ summary: 'Delete a shortened URL by ID' })
     @ApiParam({ name: 'id', description: 'URL Document ID' })
@@ -125,8 +124,6 @@ export class UrlController {
 
 
     @Get(':id/analytics')
-    @UseGuards(AuthGuard)
-    @UsePipes(new ValidationPipe({ transform: true }))
     @ApiBearerAuth('JWT')
     @ApiOperation({ summary: 'Get analytics data for a specific URL' })
     @ApiParam({ name: 'id', description: 'URL Document ID' })
