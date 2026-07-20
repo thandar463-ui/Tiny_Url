@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
-import { HashingService } from '../hashing/hashing.service';
 import { Prisma } from '@prisma/client';
+import { HashingService } from '../hashing/hashing.service';
+import { UrlRepository } from './url.repository';
 import { ShortenUrlDto } from './dtos/shortenUrl.dto';
 import { GetUrlDto } from './dtos/get-url.dto';
 import { UpdateUrlDto } from './dtos/update-url.dto';
@@ -10,7 +10,7 @@ import { GetAnalyticsUrlDto } from './dtos/get-analytics.dto';
 @Injectable()
 export class UrlService {
     constructor(
-        private readonly prisma: PrismaService,
+        private readonly urlRepo: UrlRepository,
         private readonly hashingService: HashingService,
     ) { }
 
@@ -24,20 +24,11 @@ export class UrlService {
                 dto.originalUrl,
             );
 
-        const existingUrl =
-            await this.prisma.url.findUnique({
-                where: {
-                    shortCode_userId: {
-                        shortCode,
-                        userId,
-
-                    },
-                },
-            });
+        const existingUrl = await this.urlRepo.findShortCodeWithUser(shortCode, userId);
 
         if (existingUrl) {
             throw new ConflictException(
-                'Short URL already exists',
+                'Short URL already exists for this user.',
             );
         }
 
@@ -47,13 +38,15 @@ export class UrlService {
         );
 
         const url =
-            await this.prisma.url.create({
-                data: {
-                    userId,
-                    originalUrl: dto.originalUrl,
-                    shortCode,
-                    expiresAt,
+            await this.urlRepo.create({
+                user: {
+                    connect: {
+                        id: userId,
+                    },
                 },
+                shortCode,
+                originalUrl: dto.originalUrl,
+                expiresAt,
             });
 
         return {
@@ -68,13 +61,7 @@ export class UrlService {
 
     async redirectUrl(shortCode: string, ip: string, userAgent?: string): Promise<any> {
 
-        const url = await this.prisma.url.findFirst({
-            where: {
-                shortCode,
-                deletedAt: null
-            },
-            orderBy: { createdAt: 'desc' }
-        });
+        const url = await this.urlRepo.findActiveByShortCode(shortCode,);
 
 
         if (!url) {
@@ -89,21 +76,12 @@ export class UrlService {
 
         const ipHash = this.hashingService.hashIp(ip);
 
-        const [updatedUrl, newVisit] = await Promise.all([
-            this.prisma.url.update({
-                where: { id: url.id },
-                data: {
-                    clickCount: { increment: 1 }
-                },
-            }),
-            this.prisma.visit.create({
-                data: {
-                    urlId: url.id,
-                    ipHash,
-                    userAgent,
-                },
-            }),
-        ]);
+        const [updatedUrl, newVisit] = await this.urlRepo.redirectAndTrackVisit(
+            url.id,
+            ipHash,
+            userAgent,
+        );
+
 
         let targetUrl = url.originalUrl ? url.originalUrl.trim() : '';
         if (targetUrl && !/^https?:\/\//i.test(targetUrl)) {
@@ -132,44 +110,20 @@ export class UrlService {
         const skip = (page - 1) * size;
 
         const [urls, total] = await Promise.all([
-            this.prisma.url.findMany({
-
-
-                where: {
-                    userId,
-                    deletedAt: null,
-                },
+            this.urlRepo.findManyWithPagination(
+                userId,
                 skip,
-                take: size,
-                orderBy: {
-                    createdAt: 'desc',
-                },
+                size,
+            ),
 
-                select: {
-                    id: true,
-                    shortCode: true,
-                    originalUrl: true,
-                    clickCount: true,
-                    expiresAt: true,
-                    createdAt: true,
-                    updatedAt: true,
-
-                    _count: {
-                        select: {
-                            visits: true,
-                        },
-                    },
-                },
-            }),
-
-            this.prisma.url.count({
-
-                where: {
-                    userId,
-                    deletedAt: null,
-                },
-            }),
+            this.urlRepo.countActiveUrls(
+                userId,
+            ),
         ]);
+
+
+
+
 
         return {
             urls: urls.map((url) => ({
@@ -187,63 +141,48 @@ export class UrlService {
     }
 
     async updateUrl(userId: string, id: string, input: UpdateUrlDto) {
-        const url = await this.prisma.url.findFirst({
-            where: {
-                id,
-                userId,
-                deletedAt: null,
-            },
-        });
+        const url = await this.urlRepo.findActiveById(
+            id,
+            userId,
+        );
 
         if (!url) {
             throw new NotFoundException('URL not found.');
         }
 
-        const updateUrl = await this.prisma.url.update({
-            where: {
-                id,
-            },
-            data: {
+        const updateUrl = await this.urlRepo.updateUrl(
+            id,
+
+            {
                 originalUrl: input.originalUrl,
             }
-        });
+        );
 
         return updateUrl;
     }
 
     async deleteUrl(userId: string, id: string) {
-        const url = await this.prisma.url.findFirst({
-            where: {
-                id,
-                userId,
-                deletedAt: null,
-            },
-        });
+        const url = await this.urlRepo.findActiveById(
+
+            id,
+            userId,
+        );
 
         if (!url) {
             throw new NotFoundException('URL not found.');
         }
 
-        const deleteUrl = await this.prisma.url.update({
-            where: {
-                id,
-            },
-            data: {
-                deletedAt: new Date(),
-            },
-        });
+        const deleteUrl = await this.urlRepo.deleteUrl(
+            id,);
 
         return deleteUrl;
     }
 
     async getAnalyticsUrl(id: string, userId: string, input: GetAnalyticsUrlDto) {
-        const url = await this.prisma.url.findFirst({
-            where: {
-                id,
-                userId,
-                deletedAt: null,
-            },
-        });
+        const url = await this.urlRepo.findActiveById(
+            id,
+            userId,
+        );
 
         if (!url) {
             throw new NotFoundException('URL not found.');
@@ -266,16 +205,8 @@ export class UrlService {
             }
         }
 
-        const visits = await this.prisma.visit.findMany({
-            where,
-            select: {
-                ipHash: true,
-                createdAt: true,
-            },
-            orderBy: {
-                createdAt: 'asc',
-            },
-        });
+        const visits = await this.urlRepo.findVisits(where,);
+
 
         const totalClicks = url.clickCount;
 
