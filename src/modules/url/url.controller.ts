@@ -144,4 +144,9 @@ export class UrlController {
         };
     }
 
+    @Get('redis-test')
+    @ApiOperation({ summary: 'Test Redis' })
+    async testRedis() {
+        return this.urlService.testRedis();
+    }
 }

@@ -1,17 +1,22 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import { Injectable, Inject, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { HashingService } from '../hashing/hashing.service';
 import { UrlRepository } from './url.repository';
+import { URL_REPOSITORY, type URLRepository } from './repository.interface';
 import { ShortenUrlDto } from './dtos/shortenUrl.dto';
 import { GetUrlDto } from './dtos/get-url.dto';
 import { UpdateUrlDto } from './dtos/update-url.dto';
 import { GetAnalyticsUrlDto } from './dtos/get-analytics.dto';
+import { UrlDto } from "./dtos/url.dto";
 
 @Injectable()
 export class UrlService {
     constructor(
-        private readonly urlRepo: UrlRepository,
+        @Inject(URL_REPOSITORY) private readonly urlRepo: URLRepository,
+        // private readonly urlRepo: UrlRepository,
         private readonly hashingService: HashingService,
+        @Inject('REDIS_CONN')
+        private readonly redis: any,
     ) { }
 
     async create(
@@ -37,26 +42,16 @@ export class UrlService {
             expiresAt.getDate() + 7,
         );
 
-        const url =
-            await this.urlRepo.create({
-                user: {
-                    connect: {
-                        id: userId,
-                    },
-                },
-                shortCode,
-                originalUrl: dto.originalUrl,
-                expiresAt,
-            });
+        const url = new UrlDto();
 
-        return {
-            id: url.id,
-            shortCode: url.shortCode,
-            originalUrl: url.originalUrl,
-            clickCount: url.clickCount,
-            expiresAt: url.expiresAt,
-            createdAt: url.createdAt,
-        };
+        url.userId = userId;
+        url.shortCode = shortCode;
+        url.originalUrl = dto.originalUrl;
+        url.expiresAt = expiresAt;
+
+
+
+        return this.urlRepo.create(url);
     }
 
     async redirectUrl(shortCode: string, ip: string, userAgent?: string): Promise<any> {
@@ -251,6 +246,17 @@ export class UrlService {
                 lastVisitedAt,
                 dailyClicks,
             },
+        };
+    }
+
+    async testRedis() {
+        await this.redis.set('test', 'Hello Redis');
+
+        const value = await this.redis.get('test');
+
+        return {
+            message: 'Redis is working!',
+            value,
         };
     }
 }

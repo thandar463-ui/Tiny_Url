@@ -11,8 +11,23 @@ export class UrlDto {
     deletedAt!: Date | null;
 
 
-    constructor(data: Partial<UrlDto>) {
-        Object.assign(this, data);
+    constructor(partial?: Partial<UrlDto>) {
+        if (partial) {
+            Object.assign(this, partial);
+        }
+
     }
 
+    toPlain() {
+        return {
+            id: this.id,
+            userId: this.userId,
+            shortCode: this.shortCode,
+            originalUrl: this.originalUrl,
+            expiresAt: this.expiresAt,
+            clickCount: this.clickCount,
+            createdAt: this.createdAt,
+            updatedAt: this.updatedAt,
+        };
+    }
 }

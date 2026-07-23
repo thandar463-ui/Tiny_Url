@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../../prisma/prisma.service";
-import { Prisma } from "../../generated/prisma/browser";
+import { Prisma } from '@prisma/client';
 import { UrlDto } from "./dtos/url.dto";
 
 @Injectable()
@@ -14,7 +14,9 @@ export class UrlRepository {
                 shortCode_userId: { shortCode, userId },
             },
         });
-        return url ? new UrlDto(url) : null;
+
+        if (!url || url.deletedAt) return null;
+        return new UrlDto(url);
     }
 
     async findActiveByShortCode(shortCode: string): Promise<UrlDto | null> {
@@ -32,8 +34,33 @@ export class UrlRepository {
         return url ? new UrlDto(url) : null;
     }
 
-    async create(data: Prisma.UrlCreateInput): Promise<UrlDto> {
-        const url = await this.prisma.url.create({ data });
+    async create(
+        urlDto: UrlDto,
+    ): Promise<UrlDto> {
+
+        const url =
+            await this.prisma.url.create({
+
+                data: {
+
+                    user: {
+                        connect: {
+                            id: urlDto.userId,
+                        },
+                    },
+
+                    shortCode: urlDto.shortCode,
+
+                    originalUrl: urlDto.originalUrl,
+
+                    expiresAt: urlDto.expiresAt,
+
+
+                },
+
+            });
+
+
         return new UrlDto(url);
     }
 

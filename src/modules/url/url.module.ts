@@ -6,6 +6,9 @@ import { UrlRepository } from './url.repository';
 
 import { PrismaModule } from '../../prisma/prisma.module';
 import { HashingModule } from '../hashing/hashing.module';
+import { RedisService } from './redis.service';
+import { URL_REPOSITORY } from './repository.interface';
+import { CachedURLRepositoryDecorator } from './cache-url-repository.decorator';
 
 
 @Module({
@@ -14,7 +17,12 @@ import { HashingModule } from '../hashing/hashing.module';
 
     controllers: [UrlController,],
 
-    providers: [UrlService, UrlRepository,],
+    providers: [
+        UrlService,
+        UrlRepository,
+        RedisService,
+        { provide: URL_REPOSITORY, useClass: CachedURLRepositoryDecorator },
+    ],
 
 
     exports: [UrlService, UrlRepository,],
